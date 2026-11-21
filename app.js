@@ -3,7 +3,7 @@
 (function () {
   'use strict';
 
-  var APP_VERSION = '0.1.0';
+  var APP_VERSION = '0.1.1';
   var LANGS = [['uz', 'O‘zbekcha'], ['ru', 'Русский'], ['tg', 'Тоҷикӣ']];
   var THEMES = ['system', 'light', 'dark'];
   var SVG_NS = 'http://www.w3.org/2000/svg';
@@ -13,6 +13,8 @@
     storage: 'checking',            // checking | ok | fail
     persist: 'no',                  // yes | no | unsupported
     installEvent: null, installed: false,
+    // Inside the Android APK (Capacitor) files are bundled, so no service worker / install / browser-update UI.
+    native: !!window.Capacitor,
     swReg: null, swSupported: 'serviceWorker' in navigator,
     updateReady: false, updateMsg: ''
   };
@@ -106,7 +108,7 @@
   }
 
   function registerWorker() {
-    if (!state.swSupported) return;
+    if (state.native || !state.swSupported) return;
     var hadController = !!navigator.serviceWorker.controller;
     var reloading = false;
     navigator.serviceWorker.addEventListener('controllerchange', function () {
@@ -200,12 +202,14 @@
   }
 
   function installBlock() {
+    if (state.native) return null;
     if (state.installed || isStandalone()) return h('p', { class: 'note' }, t('install.done'));
     if (state.installEvent) return h('button', { type: 'button', class: 'btn', id: 'btn-install', onclick: install }, t('install.button'));
     return h('p', { class: 'note' }, isIOS() ? t('install.ios') : t('install.menu'));
   }
 
   function updateBlock() {
+    if (state.native) return null;
     if (!state.swSupported) return h('p', { class: 'note' }, t('update.unsupported'));
     return h('div', {},
       state.updateReady
@@ -229,10 +233,10 @@
             return h('button', { type: 'button', role: 'radio', id: 'theme-' + n, class: 'choice',
               'aria-checked': state.theme === n ? 'true' : 'false', onclick: function () { setTheme(n); } }, t('theme.' + n));
           }))),
-      h('section', { class: 'group', 'aria-labelledby': 'g-app' },
+      state.native ? null : h('section', { class: 'group', 'aria-labelledby': 'g-app' },
         h('h2', { id: 'g-app' }, t('settings.app')),
         installBlock(),
-        h('div', { class: 'group-gap' }, updateBlock())),
+        state.native ? null : h('div', { class: 'group-gap' }, updateBlock())),
       h('section', { class: 'group', 'aria-labelledby': 'g-about' },
         h('h2', { id: 'g-about' }, t('settings.about')),
         h('p', { class: 'about' }, t('about.text')))
