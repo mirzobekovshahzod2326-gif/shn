@@ -3,13 +3,15 @@
 (function () {
   'use strict';
 
-  var APP_VERSION = '0.1.1';
+  var APP_VERSION = '0.2.0';
   var LANGS = [['uz', 'O‘zbekcha'], ['ru', 'Русский'], ['tg', 'Тоҷикӣ']];
   var THEMES = ['system', 'light', 'dark'];
   var SVG_NS = 'http://www.w3.org/2000/svg';
 
   var state = {
     lang: 'uz', theme: 'system', route: 'home', first: true,
+    vault: 'checking',              // checking | none | locked | open | error
+    vaultData: null, dek: null, setup: null, usePw: false, recoverMode: false, hiddenAt: 0,
     storage: 'checking',            // checking | ok | fail
     persist: 'no',                  // yes | no | unsupported
     installEvent: null, installed: false,
@@ -169,6 +171,7 @@
       statusRow(t('status.storage'), storageKey, storageLevel),
       statusRow(t('status.network'), online ? 'status.network.online' : 'status.network.offline', online ? 'ok' : 'warn'),
       statusRow(t('status.persist'), 'status.persist.' + state.persist, state.persist === 'unsupported' ? 'warn' : persistLevel),
+      statusRow(t('status.vault'), 'status.vault.open', 'ok'),
       h('div', { class: 'row' }, h('dt', {}, t('status.version')), h('dd', {}, APP_VERSION))
     ];
   }
@@ -176,7 +179,7 @@
   function refreshStatus() {
     var el = document.getElementById('status-rows');
     if (state.route === 'home' && el) el.replaceChildren.apply(el, statusRows());
-    else render();
+    else if (state.vault === 'open') render();
   }
 
   function homeView() {
@@ -191,7 +194,8 @@
         h('p', { class: 'lead' }, t('home.lead'))),
       h('section', { 'aria-labelledby': 'st-title' },
         h('h2', { id: 'st-title' }, t('status.title')),
-        h('dl', { class: 'rows', id: 'status-rows' }, statusRows()))
+        h('dl', { class: 'rows', id: 'status-rows' }, statusRows())),
+      h('div', { class: 'group-gap' }, h('button', { type: 'button', class: 'btn quiet', id: 'btn-lock', onclick: lockNow }, t('lock.now')))
     ];
   }
 
@@ -255,18 +259,161 @@
           ['circle', { cx: '15', cy: '6', r: '2' }], ['circle', { cx: '9', cy: '12', r: '2' }], ['circle', { cx: '17', cy: '18', r: '2' }]]))));
   }
 
+
+  /* ---------- vault: setup, lock, recovery ---------- */
+  var AUTOLOCK_MS = 60000, MAX_PIN_FAILS = 5;
+  function el(id) { return document.getElementById(id); }
+  function setErr(key) { var e = el('err'); if (e) e.textContent = key ? t(key) : ''; }
+  function brandEl() { return h('p', { class: 'brand', 'aria-label': 'Sh+N' }, 'Sh', h('span', { class: 'plus' }, '+'), 'N'); }
+  function title(key) { return h('h1', { class: 'page-title', tabindex: '-1', id: 'page-title' }, t(key)); }
+  function field(id, label, attrs) {
+    return h('div', { class: 'field' }, h('label', { for: id }, label),
+      h('input', Object.assign({ id: id, class: 'input', type: 'password', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false' }, attrs || {})));
+  }
+  function primary(label, fn) { return h('button', { type: 'button', class: 'btn', 'data-label': label, onclick: fn }, label); }
+  function linkBtn(label, fn) { return h('button', { type: 'button', class: 'link', onclick: fn }, label); }
+  function busy(b, on) { b.disabled = on; b.textContent = on ? t('ui.busy') : b.getAttribute('data-label'); }
+  function saveVault(v) { return ShnDB.setSetting('vault', v); }
+  function openVault(dek) {
+    state.dek = dek; state.vault = 'open'; state.usePw = false; state.recoverMode = false; state.first = true;
+    render('page-title');
+  }
+  function lockNow() {
+    state.dek = null; state.vault = 'locked'; state.usePw = false; state.recoverMode = false; render('page-title');
+  }
+  function pickThree() {
+    var out = [];
+    while (out.length < 3) { var n = crypto.getRandomValues(new Uint8Array(1))[0] % 24; if (out.indexOf(n) === -1) out.push(n); }
+    return out.sort(function (a, b) { return a - b; });
+  }
+
+  function gateView() {
+    if (state.vault === 'none') return state.setup ? recoveryView() : setupView();
+    if (state.vault === 'locked') return state.recoverMode ? recoverView() : lockView();
+    if (state.vault === 'error') return [brandEl(), h('p', { class: 'error', role: 'alert' }, t('error.nostorage'))];
+    return [brandEl()];
+  }
+
+  function setupView() {
+    return [brandEl(), title('setup.title'), h('p', { class: 'lead' }, t('setup.lead')),
+      field('pw', t('setup.pw'), { autocomplete: 'new-password' }),
+      field('pw2', t('setup.again'), { autocomplete: 'new-password' }),
+      field('pin', t('setup.pin'), { inputmode: 'numeric', maxlength: '6' }),
+      h('p', { class: 'error', id: 'err', role: 'alert' }), primary(t('setup.create'), doSetup)];
+  }
+  function doSetup(ev) {
+    var b = ev.currentTarget, pw = el('pw').value, pin = el('pin').value;
+    if (pw.length < 10) return setErr('err.short');
+    if (pw !== el('pw2').value) return setErr('err.mismatch');
+    if (pin && !/^\d{6}$/.test(pin)) return setErr('err.pin');
+    setErr(''); busy(b, true);
+    ShnCrypto.createVault(pw, pin || null).then(function (r) {
+      state.setup = { vault: r.vault, dek: r.dek, words: r.words, idx: pickThree() };
+      render('page-title');
+    }).catch(function () { busy(b, false); setErr('err.generic'); });
+  }
+
+  function recoveryView() {
+    var s = state.setup;
+    return [brandEl(), title('rec.title'), h('p', { class: 'lead' }, t('rec.lead')),
+      h('ol', { class: 'words' }, s.words.map(function (w, i) { return h('li', {}, h('span', { class: 'n' }, i + 1), w); })),
+      h('p', { class: 'lead' }, t('rec.confirm')),
+      s.idx.map(function (n, i) { return field('c' + i, t('rec.word').replace('{n}', n + 1), { type: 'text' }); }),
+      h('p', { class: 'error', id: 'err', role: 'alert' }), primary(t('rec.done'), doConfirm)];
+  }
+  function doConfirm(ev) {
+    var s = state.setup, b = ev.currentTarget;
+    var ok = s.idx.every(function (n, i) { return el('c' + i).value.trim().toLowerCase() === s.words[n]; });
+    if (!ok) return setErr('err.rec');
+    busy(b, true);
+    // The vault is saved only now, after the user proved they wrote the Recovery Key down.
+    saveVault(s.vault).then(function () {
+      state.vaultData = s.vault; state.setup = null; openVault(s.dek);
+    }).catch(function () { busy(b, false); setErr('err.generic'); });
+  }
+
+  function lockView() {
+    var v = state.vaultData, pinLocked = !!(v.pin && v.pin.fails >= MAX_PIN_FAILS);
+    var usePin = !!v.pin && !pinLocked && !state.usePw;
+    return [brandEl(), title('lock.title'),
+      usePin ? field('pin', t('lock.pin'), { inputmode: 'numeric', maxlength: '6', autocomplete: 'off', oninput: onPinInput })
+             : field('pw', t('lock.pw'), { autocomplete: 'current-password' }),
+      pinLocked ? h('p', { class: 'note' }, t('lock.pinlocked')) : null,
+      h('p', { class: 'error', id: 'err', role: 'alert' }),
+      primary(t('lock.unlock'), usePin ? doPin : doPw),
+      usePin ? linkBtn(t('lock.usepw'), function () { state.usePw = true; render('pw'); }) : null,
+      linkBtn(t('lock.forgot'), function () { state.recoverMode = true; render('page-title'); })];
+  }
+  function onPinInput(e) { if (/^\d{6}$/.test(e.target.value)) doPin(); }
+  function doPw(ev) {
+    var b = ev && ev.currentTarget ? ev.currentTarget : null, v = state.vaultData;
+    if (b) busy(b, true);
+    ShnCrypto.unlockPassword(v, el('pw').value).then(function (dek) {
+      if (v.pin && v.pin.fails) { v.pin.fails = 0; return saveVault(v).then(function () { openVault(dek); }); }
+      openVault(dek);
+    }).catch(function () { if (b) busy(b, false); setErr('lock.wrong'); });
+  }
+  var pinBusy = false;
+  function doPin() {
+    var v = state.vaultData, input = el('pin');
+    if (pinBusy || !input || !/^\d{6}$/.test(input.value) || v.pin.fails >= MAX_PIN_FAILS) return;
+    pinBusy = true;
+    ShnCrypto.unlockPin(v, input.value).then(function (dek) {
+      if (v.pin.fails) { v.pin.fails = 0; return saveVault(v).then(function () { openVault(dek); }); }
+      openVault(dek);
+    }).catch(function () {
+      v.pin.fails += 1;   // counted and saved BEFORE the answer, so closing the app does not reset it
+      return saveVault(v).then(function () {
+        if (v.pin.fails >= MAX_PIN_FAILS) render('pw'); else { input.value = ''; setErr('lock.pinwrong'); }
+      });
+    }).then(function () { pinBusy = false; }, function () { pinBusy = false; });
+  }
+
+  function recoverView() {
+    return [brandEl(), title('recover.title'),
+      h('div', { class: 'field' }, h('label', { for: 'words' }, t('recover.words')),
+        h('textarea', { id: 'words', class: 'input', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false' })),
+      field('npw', t('recover.newpw'), { autocomplete: 'new-password' }),
+      h('p', { class: 'error', id: 'err', role: 'alert' }),
+      primary(t('recover.go'), doRecover),
+      linkBtn(t('ui.back'), function () { state.recoverMode = false; render('page-title'); })];
+  }
+  function doRecover(ev) {
+    var b = ev.currentTarget, npw = el('npw').value;
+    if (npw.length < 10) return setErr('err.short');
+    setErr(''); busy(b, true);
+    ShnCrypto.recover(state.vaultData, el('words').value, npw).then(function (r) {
+      return saveVault(r.vault).then(function () { state.vaultData = r.vault; openVault(r.dek); });
+    }).catch(function (e) {
+      busy(b, false); setErr(e && e.message === 'checksum' ? 'err.checksum' : 'err.rec');
+    });
+  }
+
+  // Lock automatically after the app was in the background for a minute.
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) state.hiddenAt = Date.now();
+    else if (state.vault === 'open' && state.hiddenAt && Date.now() - state.hiddenAt > AUTOLOCK_MS) lockNow();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' || !e.target || e.target.tagName !== 'INPUT') return;
+    var b = document.querySelector('#main .btn');
+    if (b && !b.disabled) b.click();
+  });
+
   /* ---------- render & routing ---------- */
   var root = document.getElementById('app');
   function render(focusId) {
-    var view = state.route === 'settings' ? settingsView() : homeView();
+    var open = state.vault === 'open';
+    var view = open ? (state.route === 'settings' ? settingsView() : homeView()) : gateView();
     var kids = [];
-    if (state.updateReady && state.route !== 'settings') {
+    if (open && state.updateReady && state.route !== 'settings') {
       kids.push(h('div', { class: 'banner', role: 'status' }, h('span', {}, t('update.ready')),
         h('button', { type: 'button', class: 'btn', onclick: applyUpdate }, t('update.apply'))));
     }
-    kids.push(h('main', { id: 'main' }, view), navView());
+    kids.push(h('main', { id: 'main' }, view));
+    if (open) kids.push(navView());
     root.replaceChildren.apply(root, kids);
-    root.classList.toggle('intro', state.first && state.route === 'home');
+    root.classList.toggle('intro', open && state.first && state.route === 'home');
     if (focusId) {
       var el = document.getElementById(focusId);
       if (el) el.focus();
@@ -292,17 +439,19 @@
 
     ShnDB.open()
       .then(function () {
-        return Promise.all([ShnDB.getSetting('lang', null), ShnDB.getSetting('theme', null), ShnDB.health()]);
+        return Promise.all([ShnDB.getSetting('lang', null), ShnDB.getSetting('theme', null), ShnDB.health(), ShnDB.getSetting('vault', null)]);
       })
       .then(function (r) {
-        var changed = false;
-        if (r[0] && window.SHN_I18N[r[0]] && r[0] !== state.lang) { state.lang = r[0]; lsSet('shn.lang', r[0]); changed = true; }
-        if (r[1] && THEMES.indexOf(r[1]) !== -1 && r[1] !== state.theme) { state.theme = r[1]; lsSet('shn.theme', r[1]); changed = true; }
+        if (r[0] && window.SHN_I18N[r[0]]) { state.lang = r[0]; lsSet('shn.lang', r[0]); }
+        if (r[1] && THEMES.indexOf(r[1]) !== -1) { state.theme = r[1]; lsSet('shn.theme', r[1]); }
         state.storage = 'ok';
-        if (changed) { state.first = false; applyLang(); applyTheme(); render(); } else refreshStatus();
+        if (!ShnCrypto.available) { state.vault = 'error'; } else {
+          state.vaultData = r[3]; state.vault = r[3] ? 'locked' : 'none';
+        }
+        applyLang(); applyTheme(); render('page-title');
         return requestPersistence();
       })
-      .catch(function () { state.storage = 'fail'; refreshStatus(); });
+      .catch(function () { state.storage = 'fail'; state.vault = 'error'; render(); });
 
     registerWorker();
   }
