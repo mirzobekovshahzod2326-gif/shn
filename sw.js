@@ -1,10 +1,10 @@
 /* Sh+N service worker — offline-first app shell.
    RELEASE RULE: change VERSION on every release (it changes this file, which is what makes
    browsers install the update). Old caches are removed; IndexedDB user data is never touched here. */
-const VERSION = '0.1.1';
+const VERSION = '0.2.0';
 const CACHE = 'shn-cache-' + VERSION;
 const ASSETS = [
-  './', 'index.html', 'styles.css', 'boot.js', 'i18n.js', 'db.js', 'app.js',
+  './', 'index.html', 'styles.css', 'boot.js', 'i18n.js', 'db.js', 'crypto.js', 'app.js',
   'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png'
 ];
 
