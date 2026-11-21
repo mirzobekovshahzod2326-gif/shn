@@ -244,3 +244,41 @@ Object.assign(window.SHN_I18N.tg, {
   'ui.busy': 'Интизор шавед…',
   'ui.back': 'Бозгашт'
 });
+
+/* Stage 3: diary entries */
+Object.assign(window.SHN_I18N.uz, {
+  'nav.entries': 'Yozuvlar', 'entries.title': 'Yozuvlar', 'entries.new': 'Yangi yozuv',
+  'entries.empty': 'Hali yozuv yo‘q. Birinchisini yozing.', 'entries.nomatch': 'Hech narsa topilmadi.',
+  'entries.search': 'Qidirish', 'entries.bad': 'ta yozuvni o‘qib bo‘lmadi (ular o‘chirilmadi).',
+  'filter.all': 'Hammasi', 'filter.fav': 'Sevimli', 'filter.trash': 'Savatcha',
+  'cat.all': 'Barcha kategoriyalar', 'cat.none': 'Kategoriyasiz', 'cat.diary': 'Kundalik', 'cat.work': 'Ish', 'cat.family': 'Oila', 'cat.travel': 'Sayohat', 'cat.idea': 'G‘oya',
+  'entry.untitled': 'Nomsiz yozuv', 'entry.title': 'Sarlavha', 'entry.body': 'Bugun nima bo‘ldi?', 'entry.category': 'Kategoriya',
+  'entry.fav': 'Sevimliga qo‘shish', 'entry.unfav': 'Sevimlidan olish', 'entry.delete': 'Savatchaga', 'entry.back': 'Orqaga',
+  'entry.saving': 'Saqlanmoqda…', 'entry.saved': 'Saqlandi',
+  'trash.restore': 'Tiklash', 'trash.purge': 'Butunlay o‘chirish', 'trash.sure': 'Aniqmi? Qayta bosing', 'trash.empty': 'Savatcha bo‘sh.',
+  'status.entries': 'Yozuvlar'
+});
+Object.assign(window.SHN_I18N.ru, {
+  'nav.entries': 'Записи', 'entries.title': 'Записи', 'entries.new': 'Новая запись',
+  'entries.empty': 'Записей пока нет. Напишите первую.', 'entries.nomatch': 'Ничего не найдено.',
+  'entries.search': 'Поиск', 'entries.bad': 'записей не удалось прочитать (они не удалены).',
+  'filter.all': 'Все', 'filter.fav': 'Избранное', 'filter.trash': 'Корзина',
+  'cat.all': 'Все категории', 'cat.none': 'Без категории', 'cat.diary': 'Дневник', 'cat.work': 'Работа', 'cat.family': 'Семья', 'cat.travel': 'Путешествия', 'cat.idea': 'Идеи',
+  'entry.untitled': 'Без названия', 'entry.title': 'Заголовок', 'entry.body': 'Что сегодня было?', 'entry.category': 'Категория',
+  'entry.fav': 'В избранное', 'entry.unfav': 'Убрать из избранного', 'entry.delete': 'В корзину', 'entry.back': 'Назад',
+  'entry.saving': 'Сохранение…', 'entry.saved': 'Сохранено',
+  'trash.restore': 'Восстановить', 'trash.purge': 'Удалить навсегда', 'trash.sure': 'Уверены? Нажмите ещё раз', 'trash.empty': 'Корзина пуста.',
+  'status.entries': 'Записи'
+});
+Object.assign(window.SHN_I18N.tg, {
+  'nav.entries': 'Сабтҳо', 'entries.title': 'Сабтҳо', 'entries.new': 'Сабти нав',
+  'entries.empty': 'Ҳоло сабт нест. Аввалинро нависед.', 'entries.nomatch': 'Чизе ёфт нашуд.',
+  'entries.search': 'Ҷустуҷӯ', 'entries.bad': 'сабт хонда нашуд (онҳо нест карда нашуданд).',
+  'filter.all': 'Ҳама', 'filter.fav': 'Маҳбуб', 'filter.trash': 'Сабад',
+  'cat.all': 'Ҳама категорияҳо', 'cat.none': 'Бе категория', 'cat.diary': 'Рӯзнома', 'cat.work': 'Кор', 'cat.family': 'Оила', 'cat.travel': 'Сафар', 'cat.idea': 'Ғоя',
+  'entry.untitled': 'Бе сарлавҳа', 'entry.title': 'Сарлавҳа', 'entry.body': 'Имрӯз чӣ шуд?', 'entry.category': 'Категория',
+  'entry.fav': 'Ба маҳбубҳо', 'entry.unfav': 'Аз маҳбубҳо гирифтан', 'entry.delete': 'Ба сабад', 'entry.back': 'Бозгашт',
+  'entry.saving': 'Нигоҳ дошта мешавад…', 'entry.saved': 'Нигоҳ дошта шуд',
+  'trash.restore': 'Барқарор кардан', 'trash.purge': 'Тамоман нест кардан', 'trash.sure': 'Боварӣ доред? Бори дигар пахш кунед', 'trash.empty': 'Сабад холӣ аст.',
+  'status.entries': 'Сабтҳо'
+});

@@ -105,13 +105,14 @@
     });
   }
 
-  function encrypt(dek, obj) {
+  function params(iv, aad) { var p = { name: 'AES-GCM', iv: iv }; if (aad) p.additionalData = enc.encode(aad); return p; }
+  function encrypt(dek, obj, aad) {
     var iv = rand(12);
-    return subtle.encrypt({ name: 'AES-GCM', iv: iv }, dek, enc.encode(JSON.stringify(obj)))
+    return subtle.encrypt(params(iv, aad), dek, enc.encode(JSON.stringify(obj)))
       .then(function (ct) { return { iv: b64(iv), ct: b64(ct) }; });
   }
-  function decrypt(dek, blob) {
-    return subtle.decrypt({ name: 'AES-GCM', iv: unb64(blob.iv) }, dek, unb64(blob.ct))
+  function decrypt(dek, blob, aad) {
+    return subtle.decrypt(params(unb64(blob.iv), aad), dek, unb64(blob.ct))
       .then(function (p) { return JSON.parse(dec.decode(p)); }, function () { throw new Error('wrong'); });
   }
 

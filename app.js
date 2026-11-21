@@ -3,7 +3,7 @@
 (function () {
   'use strict';
 
-  var APP_VERSION = '0.2.0';
+  var APP_VERSION = '0.3.0';
   var LANGS = [['uz', 'O‘zbekcha'], ['ru', 'Русский'], ['tg', 'Тоҷикӣ']];
   var THEMES = ['system', 'light', 'dark'];
   var SVG_NS = 'http://www.w3.org/2000/svg';
@@ -11,6 +11,7 @@
   var state = {
     lang: 'uz', theme: 'system', route: 'home', first: true,
     vault: 'checking',              // checking | none | locked | open | error
+    entries: { q: '', filter: 'all', cat: '' }, editing: null, dirty: false, saveTimer: 0,
     vaultData: null, dek: null, setup: null, usePw: false, recoverMode: false, hiddenAt: 0,
     storage: 'checking',            // checking | ok | fail
     persist: 'no',                  // yes | no | unsupported
@@ -170,7 +171,8 @@
     return [
       statusRow(t('status.storage'), storageKey, storageLevel),
       statusRow(t('status.network'), online ? 'status.network.online' : 'status.network.offline', online ? 'ok' : 'warn'),
-      statusRow(t('status.persist'), 'status.persist.' + state.persist, state.persist === 'unsupported' ? 'warn' : persistLevel),
+      state.native ? null : statusRow(t('status.persist'), 'status.persist.' + state.persist, state.persist === 'unsupported' ? 'warn' : persistLevel),
+      h('div', { class: 'row' }, h('dt', {}, t('status.entries')), h('dd', {}, String(ShnEntries.counts().all))),
       statusRow(t('status.vault'), 'status.vault.open', 'ok'),
       h('div', { class: 'row' }, h('dt', {}, t('status.version')), h('dd', {}, APP_VERSION))
     ];
@@ -249,11 +251,12 @@
 
   function navView() {
     function link(route, label, icon) {
-      return h('a', { href: '#' + route, 'aria-current': state.route === route ? 'page' : null }, icon, h('span', {}, label));
+      return h('a', { href: '#' + route, 'aria-current': (state.route === route || (route === 'entries' && state.route === 'edit')) ? 'page' : null }, icon, h('span', {}, label));
     }
     return h('nav', { class: 'nav', 'aria-label': 'Sh+N' },
       h('div', { class: 'nav-inner' },
         link('home', t('nav.home'), svg([['path', { d: 'M3.5 11L12 3.5 20.5 11V20a1 1 0 0 1-1 1H15v-6H9v6H4.5a1 1 0 0 1-1-1z' }]])),
+        link('entries', t('nav.entries'), svg([['path', { d: 'M6 4h10a2 2 0 0 1 2 2v14H8a2 2 0 0 1-2-2z' }], ['path', { d: 'M9.5 9h5M9.5 13h5' }]])),
         link('settings', t('nav.settings'), svg([
           ['path', { d: 'M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1' }],
           ['circle', { cx: '15', cy: '6', r: '2' }], ['circle', { cx: '9', cy: '12', r: '2' }], ['circle', { cx: '17', cy: '18', r: '2' }]]))));
@@ -275,11 +278,18 @@
   function busy(b, on) { b.disabled = on; b.textContent = on ? t('ui.busy') : b.getAttribute('data-label'); }
   function saveVault(v) { return ShnDB.setSetting('vault', v); }
   function openVault(dek) {
-    state.dek = dek; state.vault = 'open'; state.usePw = false; state.recoverMode = false; state.first = true;
-    render('page-title');
+    ShnEntries.load(dek).then(function () {
+      state.dek = dek; state.vault = 'open'; state.usePw = false; state.recoverMode = false; state.first = true;
+      render('page-title');
+    }).catch(function () { state.vault = 'error'; render(); });
   }
   function lockNow() {
-    state.dek = null; state.vault = 'locked'; state.usePw = false; state.recoverMode = false; render('page-title');
+    flushEditor().then(null, function () {}).then(function () {
+      ShnEntries.clear(); state.dek = null; state.editing = null; state.dirty = false;
+      if (state.route === 'edit') { state.route = 'entries'; history.replaceState(null, '', '#entries'); }
+      state.entries = { q: '', filter: 'all', cat: '' };
+      state.vault = 'locked'; state.usePw = false; state.recoverMode = false; render('page-title');
+    });
   }
   function pickThree() {
     var out = [];
@@ -391,22 +401,115 @@
 
   // Lock automatically after the app was in the background for a minute.
   document.addEventListener('visibilitychange', function () {
-    if (document.hidden) state.hiddenAt = Date.now();
+    if (document.hidden) { state.hiddenAt = Date.now(); if (state.vault === 'open') flushEditor(); }
     else if (state.vault === 'open' && state.hiddenAt && Date.now() - state.hiddenAt > AUTOLOCK_MS) lockNow();
   });
   document.addEventListener('keydown', function (e) {
-    if (e.key !== 'Enter' || !e.target || e.target.tagName !== 'INPUT') return;
+    // Enter submits only the setup / lock / recovery forms, never the diary screens (the first button there is not 'submit').
+    if (e.key !== 'Enter' || state.vault === 'open' || !e.target || e.target.tagName !== 'INPUT') return;
     var b = document.querySelector('#main .btn');
     if (b && !b.disabled) b.click();
   });
+
+
+  /* ---------- entries: list, editor, autosave ---------- */
+  var CATS = [['', 'cat.none'], ['diary', 'cat.diary'], ['work', 'cat.work'], ['family', 'cat.family'], ['travel', 'cat.travel'], ['idea', 'cat.idea']];
+  var FILTERS = [['all', 'filter.all'], ['fav', 'filter.fav'], ['trash', 'filter.trash']];
+  function catLabel(id) { for (var i = 0; i < CATS.length; i++) if (CATS[i][0] === id) return t(CATS[i][1]); return ''; }
+  // Own month names: browsers often lack Uzbek/Tajik date data and print "2026 M11 21".
+  var MONTHS = {
+    uz: 'yanvar fevral mart aprel may iyun iyul avgust sentabr oktabr noyabr dekabr'.split(' '),
+    ru: 'января февраля марта апреля мая июня июля августа сентября октября ноября декабря'.split(' '),
+    tg: 'январ феврал март апрел май июн июл август сентябр октябр ноябр декабр'.split(' ')
+  };
+  function fmtDate(ts) { var d = new Date(ts); return d.getDate() + ' ' + MONTHS[state.lang][d.getMonth()] + ' ' + d.getFullYear(); }
+  function entryTitle(e) { return e.title.trim() || e.body.trim().split('\n')[0].slice(0, 60) || t('entry.untitled'); }
+
+  function saveNow() {
+    var e = state.editing;
+    clearTimeout(state.saveTimer);
+    if (!e || !state.dirty) return ShnEntries.flush();
+    state.dirty = false;
+    if (!e.title.trim() && !e.body.trim() && !ShnEntries.get(e.id)) return Promise.resolve();   // never store an empty draft
+    setSave('entry.saving');
+    return ShnEntries.commit(e).then(function () { setSave('entry.saved'); }, function () { setSave('err.generic'); });
+  }
+  function flushEditor() { return saveNow().then(function () { return ShnEntries.flush(); }); }
+  function setSave(key) { var n = el('savestate'); if (n) n.textContent = t(key); }
+  function touch() { state.dirty = true; clearTimeout(state.saveTimer); state.saveTimer = setTimeout(saveNow, 700); }
+
+  function openEditor(entry) { state.editing = entry || ShnEntries.blank(); state.dirty = false; location.hash = '#edit'; }
+  function leaveEditor() { location.hash = '#entries'; }
+
+  function listItems() {
+    var f = state.entries, rows = ShnEntries.list(f);
+    if (!rows.length) return [h('p', { class: 'note' }, f.q ? t('entries.nomatch') : (f.filter === 'trash' ? t('trash.empty') : t('entries.empty')))];
+    return rows.map(function (e) {
+      var meta = fmtDate(e.updated) + (e.cat ? ' · ' + catLabel(e.cat) : '') + (e.fav ? ' · ★ ' + t('filter.fav') : '');
+      var body = [h('span', { class: 'e-title' }, entryTitle(e)), h('span', { class: 'e-meta' }, meta),
+        e.title.trim() && e.body.trim() ? h('span', { class: 'e-snip' }, e.body.trim().split('\n')[0].slice(0, 90)) : null];
+      if (f.filter !== 'trash') return h('button', { type: 'button', class: 'entry', onclick: function () { openEditor(e); } }, body);
+      return h('div', { class: 'trash-row' }, body, h('div', { class: 'actions' },
+        h('button', { type: 'button', class: 'btn quiet', onclick: function () { ShnEntries.restore(e.id).then(function () { renderList(); }); } }, t('trash.restore')),
+        sureButton(t('trash.purge'), function () { return ShnEntries.purge(e.id).then(function () { renderList(); }); })));
+    });
+  }
+  function sureButton(label, action) {
+    var armed = false, b = h('button', { type: 'button', class: 'btn quiet', onclick: function () {
+      if (!armed) { armed = true; b.textContent = t('trash.sure'); return; }
+      action();
+    } }, label);
+    return b;
+  }
+  function renderList() { var n = el('list'); if (n) n.replaceChildren.apply(n, listItems()); }
+
+  function entriesView() {
+    var f = state.entries, c = ShnEntries.counts(), bad = ShnEntries.unreadable();
+    return [title('entries.title'),
+      h('div', { class: 'top-actions' }, h('button', { type: 'button', class: 'btn', id: 'btn-new', onclick: function () { openEditor(null); } }, t('entries.new'))),
+      h('div', { class: 'tools' },
+        h('input', { id: 'q', class: 'input', type: 'search', placeholder: t('entries.search'), 'aria-label': t('entries.search'), value: f.q, autocomplete: 'off',
+          oninput: function (ev) { f.q = ev.target.value; renderList(); } }),
+        h('div', { class: 'chips', role: 'group' }, FILTERS.map(function (x) {
+          var n = x[0] === 'all' ? c.all : (x[0] === 'fav' ? c.fav : c.trash);
+          return h('button', { type: 'button', class: 'chip', id: 'f-' + x[0], 'aria-pressed': f.filter === x[0] ? 'true' : 'false',
+            onclick: function () { f.filter = x[0]; render('f-' + x[0]); } }, t(x[1]) + ' ' + n);
+        })),
+        h('select', { id: 'cf', class: 'input', 'aria-label': t('entry.category'), onchange: function (ev) { f.cat = ev.target.value; renderList(); } },
+          CATS.map(function (x) { return h('option', { value: x[0], selected: f.cat === x[0] ? 'selected' : null }, x[0] ? t(x[1]) : t('cat.all')); }))),
+      h('div', { id: 'list', role: 'list' }, listItems()),
+      bad ? h('p', { class: 'note', role: 'alert' }, bad + ' ' + t('entries.bad')) : null];
+  }
+
+  function editView() {
+    var e = state.editing;
+    return [
+      h('div', { class: 'top-actions' }, h('button', { type: 'button', class: 'link', id: 'e-back', onclick: leaveEditor }, '← ' + t('entry.back'))),
+      h('input', { id: 'e-title', class: 'input e-input', type: 'text', value: e.title, placeholder: t('entry.title'), 'aria-label': t('entry.title'), autocomplete: 'off',
+        oninput: function (ev) { e.title = ev.target.value; touch(); } }),
+      h('div', { class: 'e-bar' },
+        h('select', { id: 'e-cat', class: 'input', 'aria-label': t('entry.category'), onchange: function (ev) { e.cat = ev.target.value; touch(); } },
+          CATS.map(function (x) { return h('option', { value: x[0], selected: e.cat === x[0] ? 'selected' : null }, t(x[1])); })),
+        h('button', { type: 'button', class: 'chip', id: 'e-fav', 'aria-pressed': e.fav ? 'true' : 'false', onclick: function (ev) {
+          e.fav = e.fav ? 0 : 1; ev.currentTarget.setAttribute('aria-pressed', e.fav ? 'true' : 'false');
+          ev.currentTarget.textContent = '★ ' + t(e.fav ? 'entry.unfav' : 'entry.fav'); touch(); } }, '★ ' + t(e.fav ? 'entry.unfav' : 'entry.fav'))),
+      h('textarea', { id: 'e-body', class: 'input e-body', placeholder: t('entry.body'), 'aria-label': t('entry.body'),
+        oninput: function (ev) { e.body = ev.target.value; touch(); } }, e.body),
+      h('p', { class: 'save-state', id: 'savestate', role: 'status' }),
+      h('button', { type: 'button', class: 'btn quiet', id: 'e-del', onclick: function () {
+        var inDb = !!ShnEntries.get(e.id);
+        saveNow().then(function () { return inDb || ShnEntries.get(e.id) ? ShnEntries.softDelete(e.id) : null; }).then(leaveEditor);
+      } }, t('entry.delete'))];
+  }
 
   /* ---------- render & routing ---------- */
   var root = document.getElementById('app');
   function render(focusId) {
     var open = state.vault === 'open';
-    var view = open ? (state.route === 'settings' ? settingsView() : homeView()) : gateView();
+    if (state.route === 'edit' && !state.editing) state.route = 'entries';
+    var view = open ? (state.route === 'settings' ? settingsView() : state.route === 'entries' ? entriesView() : state.route === 'edit' ? editView() : homeView()) : gateView();
     var kids = [];
-    if (open && state.updateReady && state.route !== 'settings') {
+    if (open && state.updateReady && state.route === 'home') {
       kids.push(h('div', { class: 'banner', role: 'status' }, h('span', {}, t('update.ready')),
         h('button', { type: 'button', class: 'btn', onclick: applyUpdate }, t('update.apply'))));
     }
@@ -422,9 +525,11 @@
   function route() {
     var r = (location.hash || '#home').slice(1);
     var changed = r !== state.route;
-    state.route = (r === 'settings') ? 'settings' : 'home';
+    var prev = state.route;
+    state.route = (r === 'settings' || r === 'entries') ? r : (r === 'edit' && state.editing ? 'edit' : (r === 'edit' ? 'entries' : 'home'));
+    if (prev === 'edit' && state.route !== 'edit') { flushEditor(); state.editing = null; }
     if (changed) state.first = false;
-    render(changed ? 'page-title' : null);
+    render(changed ? (state.route === 'edit' ? 'e-title' : 'page-title') : null);
     window.scrollTo(0, 0);
   }
   window.addEventListener('hashchange', route);
@@ -434,7 +539,7 @@
   /* ---------- start ---------- */
   function start() {
     var hash = (location.hash || '#home').slice(1);
-    state.route = hash === 'settings' ? 'settings' : 'home';
+    state.route = (hash === 'settings' || hash === 'entries') ? hash : 'home';
     applyLang(); applyTheme(); render();
 
     ShnDB.open()

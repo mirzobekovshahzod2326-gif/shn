@@ -6,11 +6,15 @@
 (function () {
   'use strict';
   var DB_NAME = 'shn';
-  var DB_VERSION = 1;
+  var DB_VERSION = 2;
 
   var MIGRATIONS = {
     1: function (db) {
       db.createObjectStore('settings', { keyPath: 'key' });
+    },
+    // Stage 3: encrypted diary records. Only id and type are readable; everything else is ciphertext.
+    2: function (db) {
+      db.createObjectStore('items', { keyPath: 'id' });
     }
   };
 
@@ -73,5 +77,9 @@
       .then(function () { return true; });
   }
 
-  window.ShnDB = { open: open, getSetting: getSetting, setSetting: setSetting, health: health, VERSION: DB_VERSION };
+  function getAll(store) { return run(store, 'readonly', function (s) { return s.getAll(); }); }
+  function put(store, value) { return run(store, 'readwrite', function (s) { return s.put(value); }); }
+  function del(store, key) { return run(store, 'readwrite', function (s) { return s.delete(key); }); }
+
+  window.ShnDB = { getAll: getAll, put: put, del: del, open: open, getSetting: getSetting, setSetting: setSetting, health: health, VERSION: DB_VERSION };
 })();
