@@ -1,7 +1,7 @@
 /* Sh+N service worker — offline-first app shell.
    RELEASE RULE: change VERSION on every release (it changes this file, which is what makes
    browsers install the update). Old caches are removed; IndexedDB user data is never touched here. */
-const VERSION = '0.3.0';
+const VERSION = '0.4.0';
 const CACHE = 'shn-cache-' + VERSION;
 const ASSETS = [
   './', 'index.html', 'styles.css', 'boot.js', 'i18n.js', 'db.js', 'crypto.js', 'entries.js', 'app.js',

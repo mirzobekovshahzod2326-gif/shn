@@ -2,13 +2,12 @@
    Every key must exist in all three languages — checked by the test suite. */
 window.SHN_I18N = {
   uz: {
-    'nav.home': 'Bosh sahifa',
+    'nav.home': 'Bosh',
     'nav.settings': 'Sozlamalar',
     'greet.morning': 'Xayrli tong',
     'greet.day': 'Xayrli kun',
     'greet.evening': 'Xayrli kech',
     'greet.night': 'Xayrli tun',
-    'home.lead': 'Ilova internetsiz ishlaydi va ma’lumotlarni shu qurilmada saqlaydi.',
     'status.title': 'Ilova holati',
     'status.storage': 'Qurilma xotirasi',
     'status.storage.ok': 'Ishlayapti',
@@ -50,7 +49,6 @@ window.SHN_I18N = {
     'greet.day': 'Добрый день',
     'greet.evening': 'Добрый вечер',
     'greet.night': 'Доброй ночи',
-    'home.lead': 'Приложение работает без интернета и хранит данные на этом устройстве.',
     'status.title': 'Состояние приложения',
     'status.storage': 'Память устройства',
     'status.storage.ok': 'Работает',
@@ -86,13 +84,12 @@ window.SHN_I18N = {
     'error.storage': 'Память не открылась. Язык и тема сохранятся только на этот сеанс.'
   },
   tg: {
-    'nav.home': 'Саҳифаи асосӣ',
+    'nav.home': 'Асосӣ',
     'nav.settings': 'Танзимот',
     'greet.morning': 'Субҳ ба хайр',
     'greet.day': 'Рӯз ба хайр',
     'greet.evening': 'Шом ба хайр',
     'greet.night': 'Шаб ба хайр',
-    'home.lead': 'Барнома бе интернет кор мекунад ва маълумотро дар ҳамин дастгоҳ нигоҳ медорад.',
     'status.title': 'Ҳолати барнома',
     'status.storage': 'Хотираи дастгоҳ',
     'status.storage.ok': 'Кор мекунад',
@@ -132,14 +129,14 @@ window.SHN_I18N = {
 /* Stage 2: vault, lock screen, Recovery Key */
 Object.assign(window.SHN_I18N.uz, {
   'setup.title': 'Parol o‘rnating',
-  'setup.lead': 'Yozuvlaringiz shu parol bilan shifrlanadi. Parolni unutsangiz, faqat Recovery Key yordam beradi.',
-  'setup.pw': 'Parol (kamida 10 belgi)',
+  'setup.lead': 'Parolni faqat bir marta o‘rnatasiz va kamdan-kam kiritasiz. Har kuni 4 xonali PIN bilan kirasiz. Parolni unutsangiz, faqat Recovery Key yordam beradi.',
+  'setup.pw': 'Asosiy parol (kamida 8 belgi)',
   'setup.again': 'Parolni takrorlang',
-  'setup.pin': 'PIN (ixtiyoriy, 6 ta raqam)',
+  'setup.pin': 'Kirish PIN-kodi (4 ta raqam)',
   'setup.create': 'Yaratish',
-  'err.short': 'Parol kamida 10 belgidan iborat bo‘lsin.',
+  'err.short': 'Parol kamida 8 belgidan iborat bo‘lsin.',
   'err.mismatch': 'Parollar mos emas.',
-  'err.pin': 'PIN 6 ta raqamdan iborat bo‘lsin.',
+  'err.pin': 'PIN aynan 4 ta raqamdan iborat bo‘lsin.',
   'err.generic': 'Xatolik yuz berdi. Qayta urinib ko‘ring.',
   'error.nostorage': 'Xotira ochilmadi, xavfsiz ishlash mumkin emas. Maxfiy rejimdan chiqing yoki brauzerni yangilang.',
   'rec.title': 'Recovery Key',
@@ -161,7 +158,7 @@ Object.assign(window.SHN_I18N.uz, {
   'lock.now': 'Qulflash',
   'recover.title': 'Tiklash',
   'recover.words': '24 so‘zni bo‘sh joy bilan ajratib yozing',
-  'recover.newpw': 'Yangi parol (kamida 10 belgi)',
+  'recover.newpw': 'Yangi parol (kamida 8 belgi)',
   'recover.go': 'Tiklash',
   'status.vault': 'Qulf',
   'status.vault.open': 'Ochiq',
@@ -170,14 +167,14 @@ Object.assign(window.SHN_I18N.uz, {
 });
 Object.assign(window.SHN_I18N.ru, {
   'setup.title': 'Задайте пароль',
-  'setup.lead': 'Ваши записи будут зашифрованы этим паролем. Если забудете пароль, поможет только Recovery Key.',
-  'setup.pw': 'Пароль (не менее 10 символов)',
+  'setup.lead': 'Пароль вы задаёте один раз и вводите редко. Каждый день вы входите по 4-значному PIN. Если забудете пароль, поможет только Recovery Key.',
+  'setup.pw': 'Основной пароль (не менее 8 символов)',
   'setup.again': 'Повторите пароль',
-  'setup.pin': 'PIN (по желанию, 6 цифр)',
+  'setup.pin': 'PIN для входа (4 цифры)',
   'setup.create': 'Создать',
-  'err.short': 'Пароль должен быть не короче 10 символов.',
+  'err.short': 'Пароль должен быть не короче 8 символов.',
   'err.mismatch': 'Пароли не совпадают.',
-  'err.pin': 'PIN должен состоять из 6 цифр.',
+  'err.pin': 'PIN должен состоять ровно из 4 цифр.',
   'err.generic': 'Произошла ошибка. Попробуйте ещё раз.',
   'error.nostorage': 'Память не открылась, безопасная работа невозможна. Выйдите из приватного режима или обновите браузер.',
   'rec.title': 'Recovery Key',
@@ -199,7 +196,7 @@ Object.assign(window.SHN_I18N.ru, {
   'lock.now': 'Заблокировать',
   'recover.title': 'Восстановление',
   'recover.words': 'Введите 24 слова через пробел',
-  'recover.newpw': 'Новый пароль (не менее 10 символов)',
+  'recover.newpw': 'Новый пароль (не менее 8 символов)',
   'recover.go': 'Восстановить',
   'status.vault': 'Блокировка',
   'status.vault.open': 'Открыто',
@@ -208,14 +205,14 @@ Object.assign(window.SHN_I18N.ru, {
 });
 Object.assign(window.SHN_I18N.tg, {
   'setup.title': 'Рамз гузоред',
-  'setup.lead': 'Сабтҳои шумо бо ин рамз рамзгузорӣ мешаванд. Агар рамзро фаромӯш кунед, танҳо Recovery Key кӯмак мекунад.',
-  'setup.pw': 'Рамз (на кам аз 10 аломат)',
+  'setup.lead': 'Рамзро танҳо як бор мемонед ва кам ворид мекунед. Ҳар рӯз бо PIN-и 4-рақама медароед. Агар рамзро фаромӯш кунед, танҳо Recovery Key кӯмак мекунад.',
+  'setup.pw': 'Рамзи асосӣ (на кам аз 8 аломат)',
   'setup.again': 'Рамзро такрор кунед',
-  'setup.pin': 'PIN (ихтиёрӣ, 6 рақам)',
+  'setup.pin': 'PIN барои дохилшавӣ (4 рақам)',
   'setup.create': 'Эҷод кардан',
-  'err.short': 'Рамз бояд на кам аз 10 аломат бошад.',
+  'err.short': 'Рамз бояд на кам аз 8 аломат бошад.',
   'err.mismatch': 'Рамзҳо мувофиқ нестанд.',
-  'err.pin': 'PIN бояд аз 6 рақам иборат бошад.',
+  'err.pin': 'PIN бояд дақиқан аз 4 рақам иборат бошад.',
   'err.generic': 'Хатогӣ рух дод. Дубора кӯшиш кунед.',
   'error.nostorage': 'Хотира кушода нашуд, кори бехатар имконнопазир аст. Аз реҷаи махфӣ барояд ё браузерро навсозӣ кунед.',
   'rec.title': 'Recovery Key',
@@ -237,7 +234,7 @@ Object.assign(window.SHN_I18N.tg, {
   'lock.now': 'Қулф кардан',
   'recover.title': 'Барқарорсозӣ',
   'recover.words': '24 калимаро бо фосила ворид кунед',
-  'recover.newpw': 'Рамзи нав (на кам аз 10 аломат)',
+  'recover.newpw': 'Рамзи нав (на кам аз 8 аломат)',
   'recover.go': 'Барқарор кардан',
   'status.vault': 'Қулф',
   'status.vault.open': 'Кушода',
@@ -281,4 +278,28 @@ Object.assign(window.SHN_I18N.tg, {
   'entry.saving': 'Нигоҳ дошта мешавад…', 'entry.saved': 'Нигоҳ дошта шуд',
   'trash.restore': 'Барқарор кардан', 'trash.purge': 'Тамоман нест кардан', 'trash.sure': 'Боварӣ доред? Бори дигар пахш кунед', 'trash.empty': 'Сабад холӣ аст.',
   'status.entries': 'Сабтҳо'
+});
+
+
+/* Stage 4: home, mood, calendar, statistics */
+Object.assign(window.SHN_I18N.uz, {
+  'nav.calendar': 'Kalendar', 'nav.stats': 'Statistika', 'home.q': 'Bugun qanday o‘tdi?', 'home.recent': 'So‘nggi yozuvlar', 'home.streak': '{n} kun ketma-ket',
+  'mood.title': 'Kayfiyat', 'mood.1': 'Juda yomon', 'mood.2': 'Yomon', 'mood.3': 'Oddiy', 'mood.4': 'Yaxshi', 'mood.5': 'Zo‘r',
+  'cal.entries': '{n} ta yozuv', 'cal.none': 'Bu kunda yozuv yo‘q.', 'cal.new': 'Shu kunga yozuv', 'cal.future': 'Bu kun hali kelmagan.',
+  'stats.title': 'Statistika', 'stats.total': 'Jami yozuvlar', 'stats.month': 'Shu oyda', 'stats.streak': 'Ketma-ket kun', 'stats.best': 'Eng uzun seriya',
+  'stats.week': 'Oxirgi 7 kun kayfiyati', 'stats.dist': '30 kunlik kayfiyat', 'stats.avg': 'O‘rtacha', 'stats.none': 'Hali kayfiyat belgilanmagan.'
+});
+Object.assign(window.SHN_I18N.ru, {
+  'nav.calendar': 'Календарь', 'nav.stats': 'Статистика', 'home.q': 'Как прошёл день?', 'home.recent': 'Последние записи', 'home.streak': '{n} дн. подряд',
+  'mood.title': 'Настроение', 'mood.1': 'Очень плохо', 'mood.2': 'Плохо', 'mood.3': 'Нормально', 'mood.4': 'Хорошо', 'mood.5': 'Отлично',
+  'cal.entries': 'записей: {n}', 'cal.none': 'В этот день записей нет.', 'cal.new': 'Запись на этот день', 'cal.future': 'Этот день ещё не наступил.',
+  'stats.title': 'Статистика', 'stats.total': 'Всего записей', 'stats.month': 'В этом месяце', 'stats.streak': 'Дней подряд', 'stats.best': 'Лучшая серия',
+  'stats.week': 'Настроение за 7 дней', 'stats.dist': 'Настроение за 30 дней', 'stats.avg': 'Среднее', 'stats.none': 'Настроение ещё не отмечено.'
+});
+Object.assign(window.SHN_I18N.tg, {
+  'nav.calendar': 'Тақвим', 'nav.stats': 'Омор', 'home.q': 'Имрӯз чӣ хел гузашт?', 'home.recent': 'Сабтҳои охирин', 'home.streak': '{n} рӯз пайҳам',
+  'mood.title': 'Кайфият', 'mood.1': 'Хеле бад', 'mood.2': 'Бад', 'mood.3': 'Оддӣ', 'mood.4': 'Хуб', 'mood.5': 'Аъло',
+  'cal.entries': '{n} сабт', 'cal.none': 'Дар ин рӯз сабт нест.', 'cal.new': 'Сабт барои ин рӯз', 'cal.future': 'Ин рӯз ҳанӯз нарасидааст.',
+  'stats.title': 'Омор', 'stats.total': 'Ҳамаи сабтҳо', 'stats.month': 'Дар ҳамин моҳ', 'stats.streak': 'Рӯзҳои пайҳам', 'stats.best': 'Беҳтарин силсила',
+  'stats.week': 'Кайфият дар 7 рӯз', 'stats.dist': 'Кайфият дар 30 рӯз', 'stats.avg': 'Миёна', 'stats.none': 'Кайфият ҳанӯз қайд нашудааст.'
 });

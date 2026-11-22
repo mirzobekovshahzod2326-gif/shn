@@ -72,7 +72,7 @@
   function pinWrap(pin, raw) {
     var salt = rand(16);
     return derive(pin, salt, PIN_ITER).then(function (k) { return wrap(k, raw, 'pin'); })
-      .then(function (w) { return { salt: b64(salt), iter: PIN_ITER, wrap: w, fails: 0 }; });
+      .then(function (w) { return { salt: b64(salt), iter: PIN_ITER, len: String(pin).length, wrap: w, fails: 0 }; });
   }
 
   function createVault(password, pin) {

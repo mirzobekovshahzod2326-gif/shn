@@ -3,7 +3,7 @@
 (function () {
   'use strict';
 
-  var APP_VERSION = '0.3.0';
+  var APP_VERSION = '0.4.0';
   var LANGS = [['uz', 'O‘zbekcha'], ['ru', 'Русский'], ['tg', 'Тоҷикӣ']];
   var THEMES = ['system', 'light', 'dark'];
   var SVG_NS = 'http://www.w3.org/2000/svg';
@@ -11,7 +11,7 @@
   var state = {
     lang: 'uz', theme: 'system', route: 'home', first: true,
     vault: 'checking',              // checking | none | locked | open | error
-    entries: { q: '', filter: 'all', cat: '' }, editing: null, dirty: false, saveTimer: 0,
+    cal: null, entries: { q: '', filter: 'all', cat: '' }, editing: null, dirty: false, saveTimer: 0,
     vaultData: null, dek: null, setup: null, usePw: false, recoverMode: false, hiddenAt: 0,
     storage: 'checking',            // checking | ok | fail
     persist: 'no',                  // yes | no | unsupported
@@ -180,25 +180,8 @@
   /* Update only the status list so the page (and its one-time intro animation) is not rebuilt. */
   function refreshStatus() {
     var el = document.getElementById('status-rows');
-    if (state.route === 'home' && el) el.replaceChildren.apply(el, statusRows());
+    if (state.route === 'settings' && el) el.replaceChildren.apply(el, statusRows());
     else if (state.vault === 'open') render();
-  }
-
-  function homeView() {
-    return [
-      h('p', { class: 'brand', 'aria-label': 'Sh+N' }, 'Sh', h('span', { class: 'plus' }, '+'), 'N'),
-      h('section', { class: 'hero' },
-        h('p', { class: 'greet' }, greeting()),
-        h('h1', { class: 'slogan', tabindex: '-1', id: 'page-title' },
-          h('span', {}, 'Your Life.'),
-          h('span', {}, 'Your Memories.'),
-          h('span', { class: 'last' }, 'Your Secret.', h('span', { class: 'seal', 'aria-hidden': 'true' }, '+'))),
-        h('p', { class: 'lead' }, t('home.lead'))),
-      h('section', { 'aria-labelledby': 'st-title' },
-        h('h2', { id: 'st-title' }, t('status.title')),
-        h('dl', { class: 'rows', id: 'status-rows' }, statusRows())),
-      h('div', { class: 'group-gap' }, h('button', { type: 'button', class: 'btn quiet', id: 'btn-lock', onclick: lockNow }, t('lock.now')))
-    ];
   }
 
   function choice(id, label, checked, onclick) {
@@ -243,6 +226,9 @@
         h('h2', { id: 'g-app' }, t('settings.app')),
         installBlock(),
         state.native ? null : h('div', { class: 'group-gap' }, updateBlock())),
+      h('section', { class: 'group', 'aria-labelledby': 'g-status' },
+        h('h2', { id: 'g-status' }, t('status.title')),
+        h('dl', { class: 'rows', id: 'status-rows' }, statusRows())),
       h('section', { class: 'group', 'aria-labelledby': 'g-about' },
         h('h2', { id: 'g-about' }, t('settings.about')),
         h('p', { class: 'about' }, t('about.text')))
@@ -256,12 +242,112 @@
     return h('nav', { class: 'nav', 'aria-label': 'Sh+N' },
       h('div', { class: 'nav-inner' },
         link('home', t('nav.home'), svg([['path', { d: 'M3.5 11L12 3.5 20.5 11V20a1 1 0 0 1-1 1H15v-6H9v6H4.5a1 1 0 0 1-1-1z' }]])),
+        link('calendar', t('nav.calendar'), svg([['rect', { x: '4', y: '5', width: '16', height: '15', rx: '2' }], ['path', { d: 'M4 10h16M9 3v4M15 3v4' }]])),
+        link('stats', t('nav.stats'), svg([['path', { d: 'M5 20V12M12 20V5M19 20v-9' }]])),
         link('entries', t('nav.entries'), svg([['path', { d: 'M6 4h10a2 2 0 0 1 2 2v14H8a2 2 0 0 1-2-2z' }], ['path', { d: 'M9.5 9h5M9.5 13h5' }]])),
         link('settings', t('nav.settings'), svg([
           ['path', { d: 'M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1' }],
           ['circle', { cx: '15', cy: '6', r: '2' }], ['circle', { cx: '9', cy: '12', r: '2' }], ['circle', { cx: '17', cy: '18', r: '2' }]]))));
   }
 
+
+
+  /* ---------- mood, home, calendar, statistics ---------- */
+  function monthNom() {   // MONTHS is declared further down, so resolve it lazily
+    return state.lang === 'ru' ? 'январь февраль март апрель май июнь июль август сентябрь октябрь ноябрь декабрь'.split(' ') : MONTHS[state.lang];
+  }
+  var WEEKDAYS = { uz: 'Ya Du Se Ch Pa Ju Sh', ru: 'Вс Пн Вт Ср Чт Пт Сб', tg: 'Яш Дш Сш Чш Пш Ҷм Шн' };   // Sunday first (Date.getDay)
+  var MOOD_MOUTH = ['M8 16q4-3.5 8 0', 'M8 15.5q4-1.5 8 0', 'M8.5 15h7', 'M8 14q4 3 8 0', 'M7.5 13.5q4.5 5 9 0'];
+  function faceIcon(n) {
+    return svg([['circle', { cx: '12', cy: '12', r: '9.5' }], ['path', { d: 'M9 10h.01M15 10h.01' }], ['path', { d: MOOD_MOUTH[n - 1] }]], 'face');
+  }
+  function moodRow(day, after) {
+    var cur = ShnEntries.moodOf(day);
+    return h('div', { class: 'moods', role: 'group', 'aria-label': t('mood.title') }, [1, 2, 3, 4, 5].map(function (n) {
+      return h('button', { type: 'button', id: 'm-' + n, class: 'mood m' + n, 'aria-pressed': cur === n ? 'true' : 'false', onclick: function () {
+        (cur === n ? ShnEntries.clearMood(day) : ShnEntries.setMood(day, n)).then(null, function () {});
+        after('m-' + n);
+      } }, faceIcon(n), h('span', {}, t('mood.' + n)));
+    }));
+  }
+  function keyDate(key) { var p = key.split('-'); return new Date(+p[0], +p[1] - 1, +p[2], 12); }
+
+  function homeView() {
+    var today = ShnEntries.dayKey(Date.now()), st = ShnEntries.stats(), recent = ShnEntries.list({ filter: 'all', q: '', cat: '' }).slice(0, 3);
+    return [
+      h('div', { class: 'home-top' },
+        h('p', { class: 'brand', 'aria-label': 'Sh+N' }, 'Sh', h('span', { class: 'plus' }, '+'), 'N'),
+        h('button', { type: 'button', class: 'icon-btn', id: 'btn-lock', 'aria-label': t('lock.now'), onclick: lockNow },
+          svg([['rect', { x: '5', y: '11', width: '14', height: '9', rx: '2' }], ['path', { d: 'M8 11V8a4 4 0 0 1 8 0v3' }]]))),
+      h('p', { class: 'greet' }, greeting()),
+      h('h1', { class: 'home-q', tabindex: '-1', id: 'page-title' }, t('home.q')),
+      moodRow(today, function (id) { render(id); }),
+      h('div', { class: 'top-actions' }, h('button', { type: 'button', class: 'btn', id: 'btn-new-home', onclick: function () { openEditor(null); } }, t('entries.new'))),
+      st.streak ? h('p', { class: 'chip-line' }, t('home.streak').replace('{n}', st.streak)) : null,
+      h('section', { 'aria-labelledby': 'rc-title' }, h('h2', { id: 'rc-title' }, t('home.recent')),
+        recent.length ? h('div', { role: 'list' }, recent.map(entryButton)) : h('p', { class: 'note' }, t('entries.empty'))),
+      h('p', { class: 'tagline' }, 'Your Life. Your Memories. Your Secret.')
+    ];
+  }
+
+  function calendarView() {
+    if (!state.cal) { var n = new Date(); state.cal = { y: n.getFullYear(), m: n.getMonth(), sel: ShnEntries.dayKey(n) }; }
+    var c = state.cal, todayKey = ShnEntries.dayKey(Date.now());
+    var lead = (new Date(c.y, c.m, 1).getDay() + 6) % 7, days = new Date(c.y, c.m + 1, 0).getDate();
+    var prefix = c.y + '-' + ('0' + (c.m + 1)).slice(-2), counts = ShnEntries.entryDays(prefix), cells = [], i;
+    for (i = 0; i < lead; i++) cells.push(h('span', { class: 'cal-blank' }));
+    function dayCell(d) {
+      var key = prefix + '-' + ('0' + d).slice(-2), lvl = ShnEntries.moodOf(key), cnt = counts[key] || 0;
+      var label = d + ' ' + MONTHS[state.lang][c.m] + (lvl ? ', ' + t('mood.' + lvl) : '') + (cnt ? ', ' + t('cal.entries').replace('{n}', cnt) : '');
+      return h('button', { type: 'button', class: 'cal-day' + (key === todayKey ? ' today' : ''), 'aria-pressed': c.sel === key ? 'true' : 'false', 'aria-label': label,
+        onclick: function () { c.sel = key; render('cal-sel'); } },
+        h('span', {}, d), lvl ? h('i', { class: 'cal-dot m' + lvl }) : null, cnt ? h('b', { class: 'cal-bar' }) : null);
+    }
+    for (i = 1; i <= days; i++) cells.push(dayCell(i));
+    function shift(dm) {
+      var d = new Date(c.y, c.m + dm, 1); c.y = d.getFullYear(); c.m = d.getMonth();
+      var pre = c.y + '-' + ('0' + (c.m + 1)).slice(-2); c.sel = todayKey.indexOf(pre) === 0 ? todayKey : pre + '-01';
+      render('cal-title');
+    }
+    var wd = WEEKDAYS[state.lang].split(' '), order = [1, 2, 3, 4, 5, 6, 0];
+    var sel = c.sel, future = sel > todayKey, list = future ? [] : ShnEntries.entriesOn(sel);
+    return [
+      h('div', { class: 'cal-head' },
+        h('button', { type: 'button', class: 'icon-btn', 'aria-label': '←', onclick: function () { shift(-1); } }, svg([['path', { d: 'M14.5 6l-6 6 6 6' }]])),
+        h('h1', { class: 'cal-title', tabindex: '-1', id: 'cal-title' }, monthNom()[c.m] + ' ' + c.y),
+        h('button', { type: 'button', class: 'icon-btn', 'aria-label': '→', onclick: function () { shift(1); } }, svg([['path', { d: 'M9.5 6l6 6-6 6' }]]))),
+      h('div', { class: 'cal-grid cal-wd', 'aria-hidden': 'true' }, order.map(function (x) { return h('span', {}, wd[x]); })),
+      h('div', { class: 'cal-grid' }, cells),
+      h('section', { class: 'day-panel', 'aria-label': fmtDate(keyDate(sel).getTime()) },
+        h('h2', { id: 'cal-sel', tabindex: '-1' }, fmtDate(keyDate(sel).getTime())),
+        future ? h('p', { class: 'note' }, t('cal.future')) : [
+          moodRow(sel, function (id) { render(id); }),
+          list.length ? h('div', { role: 'list' }, list.map(entryButton)) : h('p', { class: 'note' }, t('cal.none')),
+          h('button', { type: 'button', class: 'btn quiet', id: 'btn-new-day', onclick: function () {
+            var e = ShnEntries.blank(); if (sel !== todayKey) e.created = keyDate(sel).getTime(); openEditor(e); } }, t('cal.new'))])
+    ];
+  }
+
+  function tile(v, key) { return h('div', { class: 'tile' }, h('b', {}, String(v)), h('span', {}, t(key))); }
+  function bar(cls, pct) { var b = h('span', { class: cls }); b.style.width = pct + '%'; return b; }
+  function statsView() {
+    var s = ShnEntries.stats(), wd = WEEKDAYS[state.lang].split(' '), max = Math.max.apply(null, s.dist.concat([1]));
+    return [
+      title('stats.title'),
+      h('div', { class: 'tiles' }, tile(s.total, 'stats.total'), tile(s.month, 'stats.month'), tile(s.streak, 'stats.streak'), tile(s.best, 'stats.best')),
+      h('section', { class: 'group', 'aria-labelledby': 's-week' }, h('h2', { id: 's-week' }, t('stats.week')),
+        h('div', { class: 'wk' }, s.week.map(function (w) {
+          return h('div', { class: 'wk-col' },
+            h('div', { class: 'wk-track' }, h('span', { class: 'wk-bar ' + (w.level ? 'm' + w.level + ' h' + w.level : 'empty'), title: w.level ? t('mood.' + w.level) : '' })),
+            h('span', { class: 'wk-day' }, wd[keyDate(w.day).getDay()]));
+        }))),
+      h('section', { class: 'group', 'aria-labelledby': 's-dist' }, h('h2', { id: 's-dist' }, t('stats.dist')),
+        s.moodDays ? [h('div', {}, [5, 4, 3, 2, 1].map(function (n) {
+          return h('div', { class: 'dist-row' }, h('span', { class: 'dist-l m' + n }, faceIcon(n), t('mood.' + n)),
+            h('span', { class: 'dist-t' }, bar('dist-b m' + n, Math.round(s.dist[n - 1] / max * 100))), h('span', { class: 'dist-n' }, String(s.dist[n - 1])));
+        })), h('p', { class: 'note' }, t('stats.avg') + ': ' + s.avg.toFixed(1) + ' / 5')] : h('p', { class: 'note' }, t('stats.none')))
+    ];
+  }
 
   /* ---------- vault: setup, lock, recovery ---------- */
   var AUTOLOCK_MS = 60000, MAX_PIN_FAILS = 5;
@@ -287,7 +373,7 @@
     flushEditor().then(null, function () {}).then(function () {
       ShnEntries.clear(); state.dek = null; state.editing = null; state.dirty = false;
       if (state.route === 'edit') { state.route = 'entries'; history.replaceState(null, '', '#entries'); }
-      state.entries = { q: '', filter: 'all', cat: '' };
+      state.entries = { q: '', filter: 'all', cat: '' }; state.cal = null;
       state.vault = 'locked'; state.usePw = false; state.recoverMode = false; render('page-title');
     });
   }
@@ -308,16 +394,16 @@
     return [brandEl(), title('setup.title'), h('p', { class: 'lead' }, t('setup.lead')),
       field('pw', t('setup.pw'), { autocomplete: 'new-password' }),
       field('pw2', t('setup.again'), { autocomplete: 'new-password' }),
-      field('pin', t('setup.pin'), { inputmode: 'numeric', maxlength: '6' }),
+      field('pin', t('setup.pin'), { inputmode: 'numeric', maxlength: '4' }),
       h('p', { class: 'error', id: 'err', role: 'alert' }), primary(t('setup.create'), doSetup)];
   }
   function doSetup(ev) {
     var b = ev.currentTarget, pw = el('pw').value, pin = el('pin').value;
-    if (pw.length < 10) return setErr('err.short');
+    if (pw.length < 8) return setErr('err.short');
     if (pw !== el('pw2').value) return setErr('err.mismatch');
-    if (pin && !/^\d{6}$/.test(pin)) return setErr('err.pin');
+    if (!/^\d{4}$/.test(pin)) return setErr('err.pin');
     setErr(''); busy(b, true);
-    ShnCrypto.createVault(pw, pin || null).then(function (r) {
+    ShnCrypto.createVault(pw, pin).then(function (r) {
       state.setup = { vault: r.vault, dek: r.dek, words: r.words, idx: pickThree() };
       render('page-title');
     }).catch(function () { busy(b, false); setErr('err.generic'); });
@@ -346,7 +432,7 @@
     var v = state.vaultData, pinLocked = !!(v.pin && v.pin.fails >= MAX_PIN_FAILS);
     var usePin = !!v.pin && !pinLocked && !state.usePw;
     return [brandEl(), title('lock.title'),
-      usePin ? field('pin', t('lock.pin'), { inputmode: 'numeric', maxlength: '6', autocomplete: 'off', oninput: onPinInput })
+      usePin ? field('pin', t('lock.pin'), { inputmode: 'numeric', maxlength: String(v.pin.len || 6), autocomplete: 'off', oninput: onPinInput })
              : field('pw', t('lock.pw'), { autocomplete: 'current-password' }),
       pinLocked ? h('p', { class: 'note' }, t('lock.pinlocked')) : null,
       h('p', { class: 'error', id: 'err', role: 'alert' }),
@@ -354,7 +440,7 @@
       usePin ? linkBtn(t('lock.usepw'), function () { state.usePw = true; render('pw'); }) : null,
       linkBtn(t('lock.forgot'), function () { state.recoverMode = true; render('page-title'); })];
   }
-  function onPinInput(e) { if (/^\d{6}$/.test(e.target.value)) doPin(); }
+  function onPinInput(e) { if (e.target.value.length === (state.vaultData.pin.len || 6) && /^\d+$/.test(e.target.value)) doPin(); }
   function doPw(ev) {
     var b = ev && ev.currentTarget ? ev.currentTarget : null, v = state.vaultData;
     if (b) busy(b, true);
@@ -366,7 +452,7 @@
   var pinBusy = false;
   function doPin() {
     var v = state.vaultData, input = el('pin');
-    if (pinBusy || !input || !/^\d{6}$/.test(input.value) || v.pin.fails >= MAX_PIN_FAILS) return;
+    if (pinBusy || !input || input.value.length !== (v.pin.len || 6) || !/^\d+$/.test(input.value) || v.pin.fails >= MAX_PIN_FAILS) return;
     pinBusy = true;
     ShnCrypto.unlockPin(v, input.value).then(function (dek) {
       if (v.pin.fails) { v.pin.fails = 0; return saveVault(v).then(function () { openVault(dek); }); }
@@ -390,7 +476,7 @@
   }
   function doRecover(ev) {
     var b = ev.currentTarget, npw = el('npw').value;
-    if (npw.length < 10) return setErr('err.short');
+    if (npw.length < 8) return setErr('err.short');
     setErr(''); busy(b, true);
     ShnCrypto.recover(state.vaultData, el('words').value, npw).then(function (r) {
       return saveVault(r.vault).then(function () { state.vaultData = r.vault; openVault(r.dek); });
@@ -441,14 +527,19 @@
   function openEditor(entry) { state.editing = entry || ShnEntries.blank(); state.dirty = false; location.hash = '#edit'; }
   function leaveEditor() { location.hash = '#entries'; }
 
+  function entryBody(e) {
+    var meta = fmtDate(e.created) + (e.cat ? ' · ' + catLabel(e.cat) : '') + (e.fav ? ' · ★ ' + t('filter.fav') : '');
+    return [h('span', { class: 'e-title' }, entryTitle(e)), h('span', { class: 'e-meta' }, meta),
+      e.title.trim() && e.body.trim() ? h('span', { class: 'e-snip' }, e.body.trim().split('\n')[0].slice(0, 90)) : null];
+  }
+  function entryButton(e) { return h('button', { type: 'button', class: 'entry', onclick: function () { openEditor(e); } }, entryBody(e)); }
+
   function listItems() {
     var f = state.entries, rows = ShnEntries.list(f);
     if (!rows.length) return [h('p', { class: 'note' }, f.q ? t('entries.nomatch') : (f.filter === 'trash' ? t('trash.empty') : t('entries.empty')))];
     return rows.map(function (e) {
-      var meta = fmtDate(e.updated) + (e.cat ? ' · ' + catLabel(e.cat) : '') + (e.fav ? ' · ★ ' + t('filter.fav') : '');
-      var body = [h('span', { class: 'e-title' }, entryTitle(e)), h('span', { class: 'e-meta' }, meta),
-        e.title.trim() && e.body.trim() ? h('span', { class: 'e-snip' }, e.body.trim().split('\n')[0].slice(0, 90)) : null];
-      if (f.filter !== 'trash') return h('button', { type: 'button', class: 'entry', onclick: function () { openEditor(e); } }, body);
+      var body = entryBody(e);
+      if (f.filter !== 'trash') return entryButton(e);
       return h('div', { class: 'trash-row' }, body, h('div', { class: 'actions' },
         h('button', { type: 'button', class: 'btn quiet', onclick: function () { ShnEntries.restore(e.id).then(function () { renderList(); }); } }, t('trash.restore')),
         sureButton(t('trash.purge'), function () { return ShnEntries.purge(e.id).then(function () { renderList(); }); })));
@@ -507,7 +598,7 @@
   function render(focusId) {
     var open = state.vault === 'open';
     if (state.route === 'edit' && !state.editing) state.route = 'entries';
-    var view = open ? (state.route === 'settings' ? settingsView() : state.route === 'entries' ? entriesView() : state.route === 'edit' ? editView() : homeView()) : gateView();
+    var view = open ? (state.route === 'settings' ? settingsView() : state.route === 'entries' ? entriesView() : state.route === 'calendar' ? calendarView() : state.route === 'stats' ? statsView() : state.route === 'edit' ? editView() : homeView()) : gateView();
     var kids = [];
     if (open && state.updateReady && state.route === 'home') {
       kids.push(h('div', { class: 'banner', role: 'status' }, h('span', {}, t('update.ready')),
@@ -526,10 +617,10 @@
     var r = (location.hash || '#home').slice(1);
     var changed = r !== state.route;
     var prev = state.route;
-    state.route = (r === 'settings' || r === 'entries') ? r : (r === 'edit' && state.editing ? 'edit' : (r === 'edit' ? 'entries' : 'home'));
+    state.route = (r === 'settings' || r === 'entries' || r === 'calendar' || r === 'stats') ? r : (r === 'edit' && state.editing ? 'edit' : (r === 'edit' ? 'entries' : 'home'));
     if (prev === 'edit' && state.route !== 'edit') { flushEditor(); state.editing = null; }
     if (changed) state.first = false;
-    render(changed ? (state.route === 'edit' ? 'e-title' : 'page-title') : null);
+    render(changed ? (state.route === 'edit' ? 'e-title' : state.route === 'calendar' ? 'cal-title' : 'page-title') : null);
     window.scrollTo(0, 0);
   }
   window.addEventListener('hashchange', route);
@@ -539,7 +630,7 @@
   /* ---------- start ---------- */
   function start() {
     var hash = (location.hash || '#home').slice(1);
-    state.route = (hash === 'settings' || hash === 'entries') ? hash : 'home';
+    state.route = (hash === 'settings' || hash === 'entries' || hash === 'calendar' || hash === 'stats') ? hash : 'home';
     applyLang(); applyTheme(); render();
 
     ShnDB.open()
